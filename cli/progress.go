@@ -17,14 +17,16 @@ type ProgressUpdate struct {
 // ProgressTracker tracks the status of an operation.
 type ProgressTracker interface {
 	Update(*ProgressUpdate)
-	Close()
+	Close() error
 }
 
 // NopTracker implements the ProgressTracker interface but does nothing.
 type NopTracker struct{}
 
 func (t *NopTracker) Update(u *ProgressUpdate) {}
-func (t *NopTracker) Summarize()               {}
+func (t *NopTracker) Close() error {
+	return nil
+}
 
 // NewDefaultTracker prints a message on each update and on close.
 func NewDefaultTracker() ProgressTracker {
@@ -32,14 +34,9 @@ func NewDefaultTracker() ProgressTracker {
 }
 
 type progressTracker struct {
-	action string
-	lock   sync.Mutex
-	p      ProgressUpdate
-	start  time.Time
-}
-
-func newProgressTracker() *progressTracker {
-	return &progressTracker{start: time.Now()}
+	lock  sync.Mutex
+	p     ProgressUpdate
+	start time.Time
 }
 
 func (t *progressTracker) Update(u *ProgressUpdate) {
@@ -60,7 +57,7 @@ func (t *progressTracker) Update(u *ProgressUpdate) {
 	)
 }
 
-func (t *progressTracker) Close() {
+func (t *progressTracker) Close() error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -70,4 +67,5 @@ func (t *progressTracker) Close() {
 		elapsed.Truncate(time.Second/10),
 		bytefmt.FormatRate(t.p.BytesWritten, elapsed),
 	)
+	return nil
 }
