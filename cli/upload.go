@@ -12,17 +12,23 @@ import (
 )
 
 // Upload the sourcePath to the targetPath in the targetPkg.
-func (c *CLI) Upload(
+func Upload(
+	ctx context.Context,
 	sourcePath string,
 	targetPkg *client.DatasetRef,
 	targetPath string,
 	tracker ProgressTracker,
+	concurrency int,
 ) error {
-	ctx, cancel := context.WithCancel(c.ctx)
+	if concurrency < 1 {
+		return errors.New("concurrency must be positive")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	asyncErr := async.Error{}
-	limiter := async.NewLimiter(c.concurrency)
+	limiter := async.NewLimiter(concurrency)
 
 	uploadBatch := func(batch *client.UploadBatch) {
 		length := int64(batch.Length())

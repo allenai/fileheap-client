@@ -13,19 +13,25 @@ import (
 )
 
 // Download all files under the sourcePath in the sourcePkg to the targetPath.
-func (c *CLI) Download(
+func Download(
+	ctx context.Context,
 	sourcePkg *client.DatasetRef,
 	sourcePath string,
 	targetPath string,
 	tracker ProgressTracker,
+	concurrency int,
 ) error {
-	ctx, cancel := context.WithCancel(c.ctx)
+	if concurrency < 1 {
+		return errors.New("concurrency must be positive")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	files := sourcePkg.Files(ctx, sourcePath)
 	downloader := sourcePkg.DownloadBatch(ctx, files)
 	asyncErr := async.Error{}
-	limiter := async.NewLimiter(c.concurrency)
+	limiter := async.NewLimiter(concurrency)
 	for {
 		if err := asyncErr.Err(); err != nil {
 			return err
