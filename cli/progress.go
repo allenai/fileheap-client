@@ -41,6 +41,10 @@ func BoundedTracker(ctx context.Context, totalBytes int64) ProgressTracker {
 		return DefaultTracker()
 	}
 
+	if totalBytes == 0 {
+		return NoTracker
+	}
+
 	progress := mpb.NewWithContext(ctx, mpb.WithWidth(50))
 	bar := progress.AddBar(totalBytes,
 		mpb.PrependDecorators(newByteRatioDecorator(" %-10s / %10s")),
@@ -58,12 +62,17 @@ func UnboundedTracker(ctx context.Context) ProgressTracker {
 		return DefaultTracker()
 	}
 
-	progress := mpb.NewWithContext(ctx, mpb.WithWidth(0))
+	var bytesTotal int64
+
+	progress := mpb.NewWithContext(ctx,
+		mpb.WithWidth(0),
+		// Don't render when total is zero.
+		mpb.ContainerOptOnCond(mpb.WithOutput(nil), func() bool { return bytesTotal == 0 }))
 	bar := progress.AddBar(0, mpb.PrependDecorators(
 		newByteCountDecorator(" %-10s"),
 		newRateDecorator(" %s"),
 		decor.OnComplete(decor.Spinner(nil, decor.WCSyncSpace), "✔")))
-	return &unboundedTracker{progress: progress, bar: bar}
+	return &unboundedTracker{progress: progress, bar: bar, bytesTotal: &bytesTotal}
 }
 
 type nopTracker struct{}
@@ -129,11 +138,10 @@ func (t *boundedTracker) Close() error {
 }
 
 type unboundedTracker struct {
-	lock     sync.Mutex
-	progress *mpb.Progress
-	bar      *mpb.Bar
-
-	bytesTotal int64
+	lock       sync.Mutex
+	progress   *mpb.Progress
+	bar        *mpb.Bar
+	bytesTotal *int64
 }
 
 func (t *unboundedTracker) Update(u *ProgressUpdate) {
@@ -141,14 +149,18 @@ func (t *unboundedTracker) Update(u *ProgressUpdate) {
 	defer t.lock.Unlock()
 
 	if u.BytesPending > 0 {
-		t.bytesTotal += u.BytesPending
-		t.bar.SetTotal(t.bytesTotal, false)
+		*t.bytesTotal = *t.bytesTotal + u.BytesPending
+		t.bar.SetTotal(*t.bytesTotal, false)
 	}
 	t.bar.IncrBy(int(u.BytesWritten))
 }
 
 func (t *unboundedTracker) Close() error {
-	t.progress.Wait()
+	if *t.bytesTotal == 0 {
+		t.progress.Abort(t.bar, false)
+	} else {
+		t.progress.Wait()
+	}
 	return nil
 }
 
