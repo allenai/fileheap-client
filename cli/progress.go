@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/beaker/fileheap/bytefmt"
+	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v4"
 	"github.com/vbauerster/mpb/v4/decor"
 	"golang.org/x/crypto/ssh/terminal"
@@ -26,17 +28,24 @@ type ProgressTracker interface {
 	Close() error
 }
 
+// ProgressTrackerWithStatus tracks the status of an operation
+// and exposes the current status of the operation.
+type ProgressTrackerWithStatus interface {
+	ProgressTracker
+	Status() *ProgressUpdate
+}
+
 // NoTracker implements the ProgressTracker interface but does nothing.
 var NoTracker = &nopTracker{}
 
 // DefaultTracker prints a message on each update and on close.
-func DefaultTracker() ProgressTracker {
+func DefaultTracker() ProgressTrackerWithStatus {
 	return &progressTracker{start: time.Now()}
 }
 
 // BoundedTracker shows the progress of an operation with a predefined size.
 // Falls back to DefaultTracker if not in a terminal.
-func BoundedTracker(ctx context.Context, totalFiles, totalBytes int64) ProgressTracker {
+func BoundedTracker(ctx context.Context, totalFiles, totalBytes int64) ProgressTrackerWithStatus {
 	if !terminal.IsTerminal(int(os.Stdout.Fd())) {
 		return DefaultTracker()
 	}
@@ -81,7 +90,7 @@ func BoundedTracker(ctx context.Context, totalFiles, totalBytes int64) ProgressT
 
 // UnboundedTracker shows the progress of an operation without a predefined size.
 // Falls back to DefaultTracker if not in a terminal.
-func UnboundedTracker(ctx context.Context) ProgressTracker {
+func UnboundedTracker(ctx context.Context) ProgressTrackerWithStatus {
 	if !terminal.IsTerminal(int(os.Stdout.Fd())) {
 		return DefaultTracker()
 	}
@@ -118,11 +127,38 @@ func UnboundedTracker(ctx context.Context) ProgressTracker {
 	}
 }
 
+// UploadStats finds the number of files and bytes that would be uploaded in a directory.
+func UploadStats(directory string) (files, bytes int64, err error) {
+	visitor := func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if info.IsDir() || !info.Mode().IsRegular() {
+			return nil
+		}
+
+		files++
+		bytes += info.Size()
+		return nil
+	}
+	err = filepath.Walk(directory, visitor)
+	return
+}
+
 func (p *ProgressUpdate) update(u *ProgressUpdate) {
 	p.FilesPending += u.FilesPending
 	p.FilesWritten += u.FilesWritten
 	p.BytesPending += u.BytesPending
 	p.BytesWritten += u.BytesWritten
+}
+
+func (p *ProgressUpdate) clone() *ProgressUpdate {
+	return &ProgressUpdate{
+		FilesPending: p.FilesPending,
+		FilesWritten: p.FilesWritten,
+		BytesPending: p.BytesPending,
+		BytesWritten: p.BytesWritten,
+	}
 }
 
 type nopTracker struct{}
@@ -151,6 +187,13 @@ func (t *progressTracker) Update(u *ProgressUpdate) {
 		t.p.FilesPending,
 		bytefmt.FormatBytes(t.p.BytesPending),
 	)
+}
+
+func (t *progressTracker) Status() *ProgressUpdate {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.p.clone()
 }
 
 func (t *progressTracker) Close() error {
@@ -205,12 +248,26 @@ func (t *unboundedTracker) Update(u *ProgressUpdate) {
 	t.byteBar.SetCurrent(t.p.BytesWritten)
 }
 
+func (t *boundedTracker) Status() *ProgressUpdate {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.p.clone()
+}
+
 func (t *unboundedTracker) Close() error {
 	t.fileBar.SetTotal(t.fileBar.Current(), true)
 	t.byteBar.SetTotal(t.byteBar.Current(), true)
 	t.progress.Wait()
 	printCompletionMessage(t.p, time.Since(t.start))
 	return nil
+}
+
+func (t *unboundedTracker) Status() *ProgressUpdate {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.p.clone()
 }
 
 type decorator struct {
