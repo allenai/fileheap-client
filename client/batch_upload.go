@@ -48,9 +48,6 @@ func (b *UploadBatch) AddFile(path string, reader io.Reader, size int64) error {
 	if !b.HasCapacity(size) {
 		return errors.New("batch does not have capacity for another file")
 	}
-	if b.dataset.id != b.dataset.id {
-		return errors.New("file dataset does not match upload batch dataset")
-	}
 
 	b.paths = append(b.paths, path)
 	b.readers = append(b.readers, reader)

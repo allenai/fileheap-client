@@ -107,6 +107,11 @@ func (d *DatasetRef) NewUploadBatch() *UploadBatch {
 	return &UploadBatch{dataset: d}
 }
 
+// NewDeleteBatch creates a DeleteBatch.
+func (d *DatasetRef) NewDeleteBatch() *DeleteBatch {
+	return &DeleteBatch{dataset: d}
+}
+
 // DownloadBatch creates a BatchDownloader.
 func (d *DatasetRef) DownloadBatch(ctx context.Context, files Iterator) *BatchDownloader {
 	return &BatchDownloader{ctx: ctx, dataset: d, files: files}
