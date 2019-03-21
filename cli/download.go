@@ -28,6 +28,11 @@ func Download(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Create target directory explicitly for empty datasets.
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return err
+	}
+
 	files := sourcePkg.Files(ctx, sourcePath)
 	downloader := sourcePkg.DownloadBatch(ctx, files)
 	asyncErr := async.Error{}
@@ -72,25 +77,30 @@ func Download(
 					reportError(errors.WithStack(err))
 					return
 				}
-				defer reader.Close()
 
-				filePath := path.Join(targetPath, info.Path)
-				if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-					reportError(errors.WithStack(err))
-					return
-				}
+				// Wrap in a function to defer close until the end of each file
+				// instead of the end of the batch.
+				func() {
+					defer reader.Close()
 
-				file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-				if err != nil {
-					reportError(errors.WithStack(err))
-					return
-				}
-				defer file.Close()
+					filePath := path.Join(targetPath, info.Path)
+					if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+						reportError(errors.WithStack(err))
+						return
+					}
 
-				if _, err := io.Copy(file, reader); err != nil {
-					reportError(errors.WithStack(err))
-					return
-				}
+					file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+					if err != nil {
+						reportError(errors.WithStack(err))
+						return
+					}
+					defer file.Close()
+
+					if _, err := io.Copy(file, reader); err != nil {
+						reportError(errors.WithStack(err))
+						return
+					}
+				}()
 			}
 
 			tracker.Update(&ProgressUpdate{

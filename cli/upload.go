@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 
+	"github.com/beaker/fileheap/api"
 	"github.com/beaker/fileheap/async"
 	"github.com/beaker/fileheap/client"
 	"github.com/pkg/errors"
@@ -81,12 +85,22 @@ func Upload(
 			return errors.WithStack(err)
 		}
 
-		file, err := os.Open(filePath)
-		if err != nil {
-			return errors.WithStack(err)
+		var reader io.Reader
+		if info.Size() < api.PutFileSizeLimit {
+			// Read small files into memory and immediately close them.
+			// This limits the number of open files to concurrency.
+			buf, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			reader = bytes.NewReader(buf)
+		} else {
+			reader, err = os.Open(filePath)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
-
-		return batch.AddFile(path.Join(targetPath, relpath), file, info.Size())
+		return batch.AddFile(path.Join(targetPath, relpath), reader, info.Size())
 	}
 	if err := filepath.Walk(sourcePath, visitor); err != nil {
 		return err

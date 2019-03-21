@@ -58,6 +58,10 @@ func (b *UploadBatch) AddFile(path string, reader io.Reader, size int64) error {
 
 // Upload the files in a batch. Closes all readers.
 func (b *UploadBatch) Upload(ctx context.Context) error {
+	if len(b.paths) == 0 {
+		return nil
+	}
+
 	defer func() {
 		for _, reader := range b.readers {
 			if closer, ok := reader.(io.Closer); ok {

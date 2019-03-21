@@ -42,6 +42,9 @@ func (b *DeleteBatch) AddFile(path string) error {
 
 // Delete all paths in the batch.
 func (b *DeleteBatch) Delete(ctx context.Context) error {
+	if len(b.paths) == 0 {
+		return nil
+	}
 	if len(b.paths) == 1 {
 		return b.dataset.DeleteFile(ctx, b.paths[0])
 	}
