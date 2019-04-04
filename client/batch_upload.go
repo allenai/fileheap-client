@@ -9,8 +9,9 @@ import (
 	"net/textproto"
 	"path"
 
-	"github.com/beaker/fileheap/api"
 	"github.com/pkg/errors"
+
+	"github.com/beaker/fileheap/api"
 )
 
 // UploadBatch contains files and their readers.

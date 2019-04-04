@@ -15,10 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beaker/fileheap/api"
 	"github.com/goware/urlx"
 	retryable "github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
+
+	"github.com/beaker/fileheap/api"
 )
 
 const userAgent = "fileheap/0.1.0"

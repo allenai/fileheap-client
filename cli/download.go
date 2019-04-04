@@ -7,9 +7,10 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/pkg/errors"
+
 	"github.com/beaker/fileheap/async"
 	"github.com/beaker/fileheap/client"
-	"github.com/pkg/errors"
 )
 
 // Download all files under the sourcePath in the sourcePkg to the targetPath.

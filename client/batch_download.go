@@ -9,8 +9,9 @@ import (
 	"net/textproto"
 	"path"
 
-	"github.com/beaker/fileheap/api"
 	"github.com/pkg/errors"
+
+	"github.com/beaker/fileheap/api"
 )
 
 // BatchDownloader is an iterator over file batches.

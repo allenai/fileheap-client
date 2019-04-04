@@ -9,8 +9,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/beaker/fileheap/api"
 	"github.com/pkg/errors"
+
+	"github.com/beaker/fileheap/api"
 )
 
 // DatasetOpts allows clients to set options during creation of a new dataset.

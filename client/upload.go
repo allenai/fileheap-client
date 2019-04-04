@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/beaker/fileheap/api"
 	"github.com/pkg/errors"
+
+	"github.com/beaker/fileheap/api"
 )
 
 // upload writes the contents of a reader using the upload API.

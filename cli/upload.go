@@ -9,10 +9,11 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/pkg/errors"
+
 	"github.com/beaker/fileheap/api"
 	"github.com/beaker/fileheap/async"
 	"github.com/beaker/fileheap/client"
-	"github.com/pkg/errors"
 )
 
 // Upload the sourcePath to the targetPath in the targetPkg.

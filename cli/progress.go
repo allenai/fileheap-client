@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beaker/fileheap/bytefmt"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v4"
 	"github.com/vbauerster/mpb/v4/decor"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/beaker/fileheap/bytefmt"
 )
 
 // ProgressUpdate contains deltas for each tracked value.
