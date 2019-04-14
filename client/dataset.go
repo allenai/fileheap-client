@@ -263,7 +263,9 @@ func (d *DatasetRef) WriteFile(
 		req.ContentLength = size
 	}
 
-	client := newRetryableClient(nil)
+	client := newRetryableClient(&http.Client{
+		Timeout: 5 * time.Minute,
+	})
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return errors.WithStack(err)

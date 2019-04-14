@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"path"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -149,7 +150,9 @@ func (b *FileBatch) next() (*api.FileInfo, *Reader, error) {
 		}
 		req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-		b.resp, err = newRetryableClient(nil).Do(req.WithContext(b.ctx))
+		b.resp, err = newRetryableClient(&http.Client{
+			Timeout: 5 * time.Minute,
+		}).Do(req.WithContext(b.ctx))
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
 		}
