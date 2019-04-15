@@ -128,9 +128,9 @@ func (c *Client) sendRequest(
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	return newRetryableClient(&http.Client{
-		Timeout: 30 * time.Second,
-	}).Do(req.WithContext(ctx))
+	client := newRetryableClient()
+	client.HTTPClient.Timeout = 30 * time.Second
+	return client.Do(req.WithContext(ctx))
 }
 
 // errorFromResponse creates an error from an HTTP response, or nil on success.
@@ -168,12 +168,9 @@ func parseResponse(resp *http.Response, value interface{}) error {
 	return json.Unmarshal(bytes, value)
 }
 
-func newRetryableClient(httpClient *http.Client) *retryable.Client {
-	if httpClient == nil {
-		httpClient = &http.Client{}
-	}
+func newRetryableClient() *retryable.Client {
 	return &retryable.Client{
-		HTTPClient:   httpClient,
+		HTTPClient:   &http.Client{Timeout: 5 * time.Minute},
 		Logger:       &errorLogger{Logger: log.New(os.Stderr, "", log.LstdFlags)},
 		RetryWaitMin: 100 * time.Millisecond,
 		RetryWaitMax: 30 * time.Second,

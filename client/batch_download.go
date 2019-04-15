@@ -3,12 +3,12 @@ package client
 import (
 	"bytes"
 	"context"
+	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"path"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -97,7 +97,7 @@ func (b *FileBatch) Size() int64 {
 // Next gets the next file and its reader in the iterator.
 // If the iterator is expended it will return the sentinel error Done.
 // The batch is closed if Next returns an error. Future calls will return the same error.
-func (b *FileBatch) Next() (*api.FileInfo, *Reader, error) {
+func (b *FileBatch) Next() (*api.FileInfo, io.ReadCloser, error) {
 	if b.err != nil {
 		return nil, nil, b.err
 	}
@@ -112,7 +112,7 @@ func (b *FileBatch) Next() (*api.FileInfo, *Reader, error) {
 	return info, reader, err
 }
 
-func (b *FileBatch) next() (*api.FileInfo, *Reader, error) {
+func (b *FileBatch) next() (*api.FileInfo, io.ReadCloser, error) {
 	defer func() {
 		b.read++
 	}()
@@ -150,9 +150,7 @@ func (b *FileBatch) next() (*api.FileInfo, *Reader, error) {
 		}
 		req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-		b.resp, err = newRetryableClient(&http.Client{
-			Timeout: 5 * time.Minute,
-		}).Do(req.WithContext(b.ctx))
+		b.resp, err = newRetryableClient().Do(req.WithContext(b.ctx))
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
 		}
@@ -176,5 +174,5 @@ func (b *FileBatch) next() (*api.FileInfo, *Reader, error) {
 	}
 
 	info := b.infos[b.read]
-	return info, &Reader{body: part, size: info.Size}, nil
+	return info, part, nil
 }

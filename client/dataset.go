@@ -168,29 +168,12 @@ func (d *DatasetRef) DeleteFile(ctx context.Context, filename string) error {
 // If the file doesn't exist, this returns ErrFileNotFound.
 //
 // The caller must call Close on the returned Reader when finished reading.
-func (d *DatasetRef) ReadFile(ctx context.Context, filename string) (*Reader, error) {
-	path := path.Join("/datasets", d.id, "files", filename)
-	req, err := d.client.newRetryableRequest(http.MethodGet, path, nil, nil)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	resp, err := newRetryableClient(nil).Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrFileNotFound
-	}
-	if err := errorFromResponse(resp); err != nil {
-		return nil, err
-	}
-
-	return &Reader{body: resp.Body, size: resp.ContentLength}, nil
+func (d *DatasetRef) ReadFile(ctx context.Context, filename string) (io.ReadCloser, error) {
+	return d.ReadFileRange(ctx, filename, 0, -1)
 }
 
 // ReadFileRange reads at most length bytes from a file starting at the given offset.
-// If length is negative, the file is read until the end.
+// If length is negative, the file is read until the end. Length must not be zero.
 //
 // If the file doesn't exist, this returns ErrFileNotFound.
 //
@@ -199,19 +182,67 @@ func (d *DatasetRef) ReadFileRange(
 	ctx context.Context,
 	filename string,
 	offset, length int64,
-) (*Reader, error) {
+) (io.ReadCloser, error) {
+	r, err := d.readFileRange(ctx, filename, offset, length)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a pipe so that we can retry reading the file from where we left off
+	// if there is an error. Errors are expected when reading the file takes longer
+	// than the HTTP client's timeout.
+	pr, pw := io.Pipe()
+	go func() {
+		defer r.Close()
+		defer pw.Close()
+		for {
+			n, err := io.Copy(pw, r)
+			if err == nil {
+				return
+			}
+			if n == 0 {
+				pw.CloseWithError(errors.WithStack(err))
+				return
+			}
+			offset += n
+			length -= n
+
+			r.Close()
+			r, err = d.readFileRange(ctx, filename, offset, length)
+			if err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
+	}()
+
+	return pr, nil
+}
+
+func (d *DatasetRef) readFileRange(
+	ctx context.Context,
+	filename string,
+	offset, length int64,
+) (io.ReadCloser, error) {
+	if offset < 0 {
+		return nil, errors.New("offset must not be negative")
+	}
+	if length == 0 {
+		return nil, errors.New("length must not be zero")
+	}
+
 	path := path.Join("/datasets", d.id, "files", filename)
 	req, err := d.client.newRetryableRequest(http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if length < 0 {
+	if offset != 0 && length < 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
-	} else {
+	} else if length > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
 	}
 
-	resp, err := newRetryableClient(nil).Do(req.WithContext(ctx))
+	resp, err := newRetryableClient().Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -221,8 +252,7 @@ func (d *DatasetRef) ReadFileRange(
 	if err := errorFromResponse(resp); err != nil {
 		return nil, err
 	}
-
-	return &Reader{body: resp.Body, size: resp.ContentLength}, nil
+	return resp.Body, nil
 }
 
 // WriteFile writes the source to the filename in this dataset.
@@ -263,9 +293,7 @@ func (d *DatasetRef) WriteFile(
 		req.ContentLength = size
 	}
 
-	client := newRetryableClient(&http.Client{
-		Timeout: 5 * time.Minute,
-	})
+	client := newRetryableClient()
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return errors.WithStack(err)

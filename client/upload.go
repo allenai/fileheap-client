@@ -9,7 +9,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -57,15 +56,12 @@ func (c *Client) upload(
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		req.Header.Set("User-Agent", userAgent)
 
 		req.ContentLength = n
 		req.Header.Set("Upload-Length", strconv.FormatInt(length, 10))
 		req.Header.Set("Upload-Offset", strconv.FormatInt(written, 10))
 
-		client := newRetryableClient(&http.Client{
-			Timeout: 5 * time.Minute,
-		})
+		client := newRetryableClient()
 		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {
 			return nil, errors.WithStack(err)
