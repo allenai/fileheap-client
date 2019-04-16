@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"io"
 	"os"
 	"path"
@@ -104,8 +105,18 @@ func Download(
 					}
 					defer file.Close()
 
-					if _, err := io.Copy(file, reader); err != nil {
+					hash := sha256.New()
+					hashReader := io.TeeReader(reader, hash)
+					if _, err := io.Copy(file, hashReader); err != nil {
 						reportError(errors.WithStack(err))
+						return
+					}
+					if digest := hash.Sum(nil); !bytes.Equal(digest, info.Digest) {
+						reportError(errors.Errorf(
+							"%s has incorrect digest: expected %s, got %s",
+							info.Path,
+							base64.StdEncoding.EncodeToString(info.Digest),
+							base64.StdEncoding.EncodeToString(digest)))
 						return
 					}
 				}()
