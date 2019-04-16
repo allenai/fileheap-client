@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"io"
 	"os"
 	"path"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/beaker/fileheap/api"
 	"github.com/beaker/fileheap/async"
 	"github.com/beaker/fileheap/client"
 )
@@ -34,7 +37,11 @@ func Download(
 		return err
 	}
 
-	files := sourcePkg.Files(ctx, sourcePath)
+	files := &modifiedIterator{
+		files:      sourcePkg.Files(ctx, sourcePath),
+		targetPath: targetPath,
+		tracker:    tracker,
+	}
 	downloader := sourcePkg.DownloadBatch(ctx, files)
 	asyncErr := async.Error{}
 	limiter := async.NewLimiter(concurrency)
@@ -119,4 +126,61 @@ func Download(
 
 	tracker.Close()
 	return nil
+}
+
+// modifiedFilter wraps a FileIterator and filters out files that already
+// exist in the local filesystem and have the same content as the remote copy.
+type modifiedIterator struct {
+	files      client.Iterator
+	targetPath string
+	tracker    ProgressTracker
+}
+
+func (i *modifiedIterator) Next() (*api.FileInfo, error) {
+	for {
+		info, err := i.files.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		filename := path.Join(i.targetPath, info.Path)
+		finfo, err := os.Stat(filename)
+		if os.IsNotExist(err) {
+			return info, nil
+		}
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if finfo.Size() != info.Size {
+			return info, nil
+		}
+
+		digest, err := getDigest(filename)
+		if err != nil {
+			return nil, err
+		}
+		if !bytes.Equal(digest, info.Digest) {
+			return info, nil
+		}
+
+		// Local file is the same as remote. Mark as written.
+		i.tracker.Update(&ProgressUpdate{
+			FilesWritten: 1,
+			BytesWritten: info.Size,
+		})
+	}
+}
+
+func getDigest(filename string) ([]byte, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return hash.Sum(nil), nil
 }

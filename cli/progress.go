@@ -220,6 +220,13 @@ func (t *boundedTracker) Update(u *ProgressUpdate) {
 	t.byteBar.SetCurrent(t.p.BytesWritten)
 }
 
+func (t *boundedTracker) Status() *ProgressUpdate {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.p.clone()
+}
+
 func (t *boundedTracker) Close() error {
 	t.fileBar.SetTotal(t.fileBar.Current(), true)
 	t.byteBar.SetTotal(t.byteBar.Current(), true)
@@ -242,18 +249,13 @@ func (t *unboundedTracker) Update(u *ProgressUpdate) {
 
 	t.p.update(u)
 
-	t.fileBar.SetTotal(t.p.FilesWritten+t.p.FilesPending, false)
+	// The progress bar stops updating if current is equal to total. Add 1 to the
+	// total to prevent this. This fake total is never displayed and is corrected on close.
+	t.fileBar.SetTotal(t.p.FilesWritten+t.p.FilesPending+1, false)
 	t.fileBar.SetCurrent(t.p.FilesWritten)
 
-	t.byteBar.SetTotal(t.p.BytesWritten+t.p.BytesPending, false)
+	t.byteBar.SetTotal(t.p.BytesWritten+t.p.BytesPending+1, false)
 	t.byteBar.SetCurrent(t.p.BytesWritten)
-}
-
-func (t *boundedTracker) Status() *ProgressUpdate {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	return t.p.clone()
 }
 
 func (t *unboundedTracker) Close() error {
