@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -268,6 +269,9 @@ func (d *DatasetRef) WriteFile(
 	source io.Reader,
 	size int64,
 ) error {
+	// Only read size bytes from the source in case the source grows while writing.
+	source = io.LimitReader(source, size)
+
 	var body io.Reader
 	var digest []byte
 
@@ -275,10 +279,20 @@ func (d *DatasetRef) WriteFile(
 		var err error
 		digest, err = d.client.upload(ctx, source, size)
 		if err != nil {
+			if err == io.ErrUnexpectedEOF {
+				return errors.Errorf("%s truncated while uploading", filename)
+			}
 			return err
 		}
 	} else if size != 0 {
-		body = source
+		buf := bytes.NewBuffer(make([]byte, 0, size))
+		if _, err := io.CopyN(buf, source, size); err != nil {
+			if err == io.EOF {
+				return errors.Errorf("%s truncated while uploading", filename)
+			}
+			return errors.WithStack(err)
+		}
+		body = buf
 	}
 
 	path := path.Join("/datasets", d.id, "files", filename)

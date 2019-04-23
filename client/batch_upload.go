@@ -84,7 +84,12 @@ func (b *UploadBatch) Upload(ctx context.Context) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		io.Copy(pw, b.readers[i])
+		if _, err := io.CopyN(pw, b.readers[i], b.sizes[i]); err != nil {
+			if err == io.EOF {
+				return errors.Errorf("%s truncated while uploading", b.paths[i])
+			}
+			return errors.WithStack(err)
+		}
 	}
 	if err := mw.Close(); err != nil {
 		return errors.WithStack(err)
