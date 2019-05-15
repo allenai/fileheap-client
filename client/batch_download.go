@@ -3,14 +3,13 @@ package client
 import (
 	"bytes"
 	"context"
+	"github.com/pkg/errors"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"path"
-
-	"github.com/pkg/errors"
 
 	"github.com/beaker/fileheap/api"
 )
@@ -150,7 +149,7 @@ func (b *FileBatch) next() (*api.FileInfo, io.ReadCloser, error) {
 		}
 		req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-		b.resp, err = newRetryableClient().Do(req.WithContext(b.ctx))
+		b.resp, err = newRetryableBatchClient().Do(req.WithContext(b.ctx))
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
 		}

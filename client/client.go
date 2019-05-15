@@ -181,6 +181,16 @@ func newRetryableClient() *retryable.Client {
 	}
 }
 
+// newRetryableBatchClient configures retryable batch client for use with batch APIs.
+// Changes:
+// 1. a much larger HTTPClient timeout.
+// TODO: this should probably be configurable.
+func newRetryableBatchClient() *retryable.Client {
+	retryableClient := newRetryableClient()
+	retryableClient.HTTPClient.Timeout = 30 * time.Minute
+	return retryableClient
+}
+
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // exponentialJitterBackoff implements exponential backoff with full jitter as described here:

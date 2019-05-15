@@ -102,7 +102,7 @@ func (b *UploadBatch) Upload(ctx context.Context) error {
 	}
 	req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-	resp, err := newRetryableClient().Do(req.WithContext(ctx))
+	resp, err := newRetryableBatchClient().Do(req.WithContext(ctx))
 	if err != nil {
 		return errors.WithStack(err)
 	}
