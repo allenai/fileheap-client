@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"mime/multipart"
@@ -75,7 +74,8 @@ func (b *UploadBatch) Upload(ctx context.Context) error {
 		return b.dataset.WriteFile(ctx, b.paths[0], b.readers[0], b.sizes[0])
 	}
 
-	buffer := new(bytes.Buffer)
+	buffer := getBuffer()
+	defer putBuffer(buffer)
 	mw := multipart.NewWriter(buffer)
 	for i, path := range b.paths {
 		pw, err := mw.CreatePart(textproto.MIMEHeader{

@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -285,7 +284,8 @@ func (d *DatasetRef) WriteFile(
 			return err
 		}
 	} else if size != 0 {
-		buf := bytes.NewBuffer(make([]byte, 0, size))
+		buf := getBuffer()
+		defer putBuffer(buf)
 		if _, err := io.CopyN(buf, source, size); err != nil {
 			if err == io.EOF {
 				return errors.Errorf("%s truncated while uploading", filename)

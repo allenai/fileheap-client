@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -115,11 +114,12 @@ func (c *Client) sendRequest(
 ) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {
-		b := &bytes.Buffer{}
-		if err := json.NewEncoder(b).Encode(body); err != nil {
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if err := json.NewEncoder(buf).Encode(body); err != nil {
 			return nil, err
 		}
-		reader = b
+		reader = buf
 	}
 
 	req, err := c.newRetryableRequest(method, path, query, reader)

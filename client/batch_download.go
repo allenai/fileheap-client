@@ -1,15 +1,15 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"github.com/pkg/errors"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"path"
+
+	"github.com/pkg/errors"
 
 	"github.com/beaker/fileheap/api"
 )
@@ -129,7 +129,8 @@ func (b *FileBatch) next() (*api.FileInfo, io.ReadCloser, error) {
 	}
 
 	if b.mr == nil {
-		buf := new(bytes.Buffer)
+		buf := getBuffer()
+		defer putBuffer(buf)
 		mw := multipart.NewWriter(buf)
 		for _, info := range b.infos {
 			if _, err := mw.CreatePart(textproto.MIMEHeader{

@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"io"
@@ -38,7 +37,8 @@ func (c *Client) upload(
 		// Avoid creating a massive buffer for small data.
 		chunkSize = int(length)
 	}
-	buf := bytes.NewBuffer(make([]byte, 0, chunkSize))
+	buf := getBuffer()
+	defer putBuffer(buf)
 
 	var written int64
 	for written < length {

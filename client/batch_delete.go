@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"mime/multipart"
 	"net/http"
@@ -50,7 +49,8 @@ func (b *DeleteBatch) Delete(ctx context.Context) error {
 		return b.dataset.DeleteFile(ctx, b.paths[0])
 	}
 
-	buffer := new(bytes.Buffer)
+	buffer := getBuffer()
+	defer putBuffer(buffer)
 	mw := multipart.NewWriter(buffer)
 	for _, path := range b.paths {
 		if _, err := mw.CreatePart(textproto.MIMEHeader{
