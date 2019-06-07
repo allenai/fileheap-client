@@ -46,6 +46,11 @@ const (
 	// The Upload-Offset request and response header indicates a byte offset
 	// within a resource. The value must be a non-negative integer.
 	HeaderUploadOffset = "Upload-Offset"
+
+	// The Source header indicates the reason for a dataset PUT request.
+	// The only valid value is "deleted" which indicates that the dataset
+	// should be undeleted.
+	HeaderSource = "Source"
 )
 
 // Digest algorithms
