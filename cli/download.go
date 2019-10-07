@@ -39,7 +39,7 @@ func Download(
 	}
 
 	files := &modifiedIterator{
-		files:      sourcePkg.Files(ctx, sourcePath),
+		files:      sourcePkg.Files(ctx, &client.FileIteratorOptions{Prefix: sourcePath}),
 		targetPath: targetPath,
 		tracker:    tracker,
 	}

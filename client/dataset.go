@@ -98,9 +98,25 @@ func (d *DatasetRef) Delete(ctx context.Context) error {
 	return errorFromResponse(resp)
 }
 
+// FileIteratorOptions provides optional configuration to a file iterator.
+type FileIteratorOptions struct {
+	// Include presigned URLs to download each file. Note that this may result in slower response times.
+	IncludeURLs bool
+
+	// Maximum number of files to fetch in a single request.
+	PageSize int
+
+	// Prefix within the dataset. Only files that start with the prefix will be included.
+	Prefix string
+}
+
 // Files returns an iterator over all files in the dataset.
-func (d *DatasetRef) Files(ctx context.Context, path string) *FileIterator {
-	return &FileIterator{dataset: d, ctx: ctx, path: path}
+func (d *DatasetRef) Files(ctx context.Context, opts *FileIteratorOptions) *FileIterator {
+	i := &FileIterator{dataset: d, ctx: ctx}
+	if opts != nil {
+		i.opts = *opts
+	}
+	return i
 }
 
 // NewUploadBatch creates an UploadBatch.

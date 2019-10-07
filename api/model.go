@@ -105,4 +105,7 @@ type FileInfo struct {
 
 	// Time at which the file was last updated.
 	Updated time.Time `json:"updated"`
+
+	// URL where the file can be retrieved with a GET request.
+	URL string `json:"url,omitempty"`
 }

@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/beaker/fileheap/api"
-	"github.com/pkg/errors"
 )
 
 // Iterator is an iterator over file information.
@@ -18,12 +17,14 @@ type Iterator interface {
 
 // FileIterator is an iterator over files within a dataset.
 type FileIterator struct {
-	dataset *DatasetRef
-	path    string
 	ctx     context.Context
-	limit   int
-	files   []api.FileInfo
-	cursor  string
+	dataset *DatasetRef
+
+	// Optional configuration.
+	opts FileIteratorOptions
+
+	files  []api.FileInfo
+	cursor string
 
 	// Whether the final request has been made.
 	lastRequest bool
@@ -43,9 +44,12 @@ func (i *FileIterator) Next() (*api.FileInfo, error) {
 	}
 
 	path := path.Join("/datasets", i.dataset.id, "manifest")
-	query := url.Values{"cursor": {i.cursor}, "path": {i.path}}
-	if i.limit > 0 {
-		query["limit"] = []string{strconv.Itoa(i.limit)}
+	query := url.Values{"cursor": {i.cursor}, "path": {i.opts.Prefix}}
+	if limit := i.opts.PageSize; limit > 0 {
+		query["limit"] = []string{strconv.Itoa(limit)}
+	}
+	if i.opts.IncludeURLs {
+		query["url"] = []string{"true"}
 	}
 	resp, err := i.dataset.client.sendRequest(i.ctx, http.MethodGet, path, query, nil)
 	if err != nil {
@@ -65,14 +69,4 @@ func (i *FileIterator) Next() (*api.FileInfo, error) {
 	}
 
 	return i.Next()
-}
-
-// SetLimit sets the maximum number of files to list in a request.
-func (i *FileIterator) SetLimit(limit int) error {
-	if limit <= 0 {
-		return errors.New("limit must be positive")
-	}
-
-	i.limit = limit
-	return nil
 }
