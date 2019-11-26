@@ -74,6 +74,18 @@ type Dataset struct {
 
 	// Whether the dataset is locked for writes.
 	ReadOnly bool `json:"readonly"`
+
+	// Size of the dataset. May be nil.
+	Size *DatasetSize `json:"size,omitempty"`
+}
+
+// DatasetSize describes the size of a dataset.
+type DatasetSize struct {
+	// If true the dataset's size is final and will not change.
+	Final      bool   `json:"final"`
+	Files      int64  `json:"files"`
+	Bytes      int64  `json:"bytes"`
+	BytesHuman string `json:"bytesHuman"`
 }
 
 // DatasetPatch allows modification of a dataset's mutable properties.
