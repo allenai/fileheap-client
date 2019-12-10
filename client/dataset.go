@@ -330,3 +330,24 @@ func (d *DatasetRef) WriteFile(
 	}
 	return errorFromResponse(resp)
 }
+
+// AddFile to a dataset when the digest is already known.
+func (d *DatasetRef) AddFile(
+	ctx context.Context,
+	filename string,
+	digest []byte,
+) error {
+	path := path.Join("/datasets", d.id, "files", filename)
+	req, err := d.client.newRetryableRequest(http.MethodPut, path, nil, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set(api.HeaderDigest, api.EncodeDigest(digest))
+
+	client := newRetryableClient()
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return errorFromResponse(resp)
+}
