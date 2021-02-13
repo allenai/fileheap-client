@@ -6,15 +6,16 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/allenai/bytefmt"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v4"
 	"github.com/vbauerster/mpb/v4/decor"
 	"golang.org/x/crypto/ssh/terminal"
-
-	"github.com/beaker/fileheap/bytefmt"
 )
 
 // ProgressUpdate contains deltas for each tracked value.
@@ -76,7 +77,7 @@ func BoundedTracker(ctx context.Context, totalFiles, totalBytes int64) ProgressT
 				if p.BytesPending == 0 {
 					return ""
 				}
-				return fmt.Sprintf(" %s in progress", bytefmt.FormatBytes(p.BytesPending))
+				return fmt.Sprintf(" %s in progress", formatBytes(p.BytesPending))
 			}),
 			decor.OnComplete(decor.Spinner(nil, decor.WCSyncSpace), "✔")))
 
@@ -115,7 +116,7 @@ func UnboundedTracker(ctx context.Context) ProgressTrackerWithStatus {
 			if p.BytesPending == 0 {
 				return ""
 			}
-			return fmt.Sprintf(" %s in progress", bytefmt.FormatBytes(p.BytesPending))
+			return fmt.Sprintf(" %s in progress", formatBytes(p.BytesPending))
 		}),
 		decor.OnComplete(decor.Spinner(nil, decor.WCSyncSpace), "✔")))
 
@@ -184,9 +185,9 @@ func (t *progressTracker) Update(u *ProgressUpdate) {
 	fmt.Printf(
 		"Complete: %8d files, %-10s In Progress: %8d files, %-10s\n",
 		t.p.FilesWritten,
-		bytefmt.FormatBytes(t.p.BytesWritten),
+		formatBytes(t.p.BytesWritten),
 		t.p.FilesPending,
-		bytefmt.FormatBytes(t.p.BytesPending),
+		formatBytes(t.p.BytesPending),
 	)
 }
 
@@ -295,11 +296,11 @@ var ratioDecorator = newDecorator(func(s *decor.Statistics) string {
 })
 
 var byteCountDecorator = newDecorator(func(s *decor.Statistics) string {
-	return fmt.Sprintf("%-10s", bytefmt.FormatBytes(s.Current))
+	return fmt.Sprintf("%-10s", formatBytes(s.Current))
 })
 
 var byteRatioDecorator = newDecorator(func(s *decor.Statistics) string {
-	return fmt.Sprintf("%-10s / %10s", bytefmt.FormatBytes(s.Current), bytefmt.FormatBytes(s.Total))
+	return fmt.Sprintf("%-10s / %10s", formatBytes(s.Current), formatBytes(s.Total))
 })
 
 var percentageDecorator = newDecorator(func(s *decor.Statistics) string {
@@ -310,7 +311,38 @@ func printCompletionMessage(p *ProgressUpdate, elapsed time.Duration) {
 	fmt.Printf(
 		"Completed in %s: %s, %d files/s\n",
 		elapsed.Truncate(time.Second/10),
-		bytefmt.FormatRate(p.BytesWritten, elapsed),
+		FormatRate(p.BytesWritten, elapsed),
 		int(math.Round(float64(p.FilesWritten)/elapsed.Seconds())),
 	)
+}
+
+func formatBytes(bytes int64) string {
+	return bytefmt.New(bytes, bytefmt.Binary).String()
+}
+
+// FormatRate returns a string showing transfer rate in bytes-per-second.
+func FormatRate(bytes int64, d time.Duration) string {
+	n := float64(bytes)
+
+	// The bytefmt package prioritizes accuracy and doesn't emit floating point.
+	// When showing rates, we prefer brevity over precision.
+	var suffix string
+	switch {
+	case n < float64(bytefmt.KiB):
+		suffix = " B/s"
+	case n < float64(bytefmt.MiB):
+		n /= float64(bytefmt.KiB)
+		suffix = " KiB/s"
+	case n < float64(bytefmt.GiB):
+		n /= float64(bytefmt.MiB)
+		suffix = " MiB/s"
+	default:
+		n /= float64(bytefmt.GiB)
+		suffix = " GiB/s"
+	}
+
+	result := strconv.FormatFloat(n, 'f', 2, 64)
+	result = strings.TrimRight(result, "0")
+	result = strings.TrimRight(result, ".")
+	return result + suffix
 }
