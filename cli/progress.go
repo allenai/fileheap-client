@@ -6,8 +6,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -317,32 +315,11 @@ func printCompletionMessage(p *ProgressUpdate, elapsed time.Duration) {
 }
 
 func formatBytes(bytes int64) string {
-	return bytefmt.New(bytes, bytefmt.Binary).String()
+	return fmt.Sprintf("%v", bytefmt.New(bytes, bytefmt.Binary))
 }
 
 // FormatRate returns a string showing transfer rate in bytes-per-second.
 func FormatRate(bytes int64, d time.Duration) string {
-	n := float64(bytes)
-
-	// The bytefmt package prioritizes accuracy and doesn't emit floating point.
-	// When showing rates, we prefer brevity over precision.
-	var suffix string
-	switch {
-	case n < float64(bytefmt.KiB):
-		suffix = " B/s"
-	case n < float64(bytefmt.MiB):
-		n /= float64(bytefmt.KiB)
-		suffix = " KiB/s"
-	case n < float64(bytefmt.GiB):
-		n /= float64(bytefmt.MiB)
-		suffix = " MiB/s"
-	default:
-		n /= float64(bytefmt.GiB)
-		suffix = " GiB/s"
-	}
-
-	result := strconv.FormatFloat(n, 'f', 2, 64)
-	result = strings.TrimRight(result, "0")
-	result = strings.TrimRight(result, ".")
-	return result + suffix
+	rate := bytefmt.New(int64(math.Round(float64(bytes)/d.Seconds())), bytefmt.Binary)
+	return fmt.Sprintf("%v/s", rate)
 }

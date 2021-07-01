@@ -3,7 +3,7 @@ module github.com/beaker/fileheap
 go 1.13
 
 require (
-	github.com/allenai/bytefmt v0.1.0
+	github.com/allenai/bytefmt v0.1.2
 	github.com/goware/urlx v0.3.1
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/kr/pretty v0.1.0 // indirect
