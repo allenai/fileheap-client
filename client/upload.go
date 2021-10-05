@@ -28,8 +28,10 @@ func (c *Client) upload(
 		return nil, errors.WithStack(err)
 	}
 	if err := errorFromResponse(resp); err != nil {
+		resp.Body.Close()
 		return nil, err
 	}
+	resp.Body.Close()
 	uploadID := resp.Header.Get(api.HeaderUploadID)
 
 	chunkSize := requestSizeLimit
@@ -52,7 +54,7 @@ func (c *Client) upload(
 		}
 
 		path := path.Join("/uploads", uploadID)
-		req, err := c.newRetryableRequest(http.MethodPatch, path, nil, buf)
+		req, err := c.newRequest(http.MethodPatch, path, nil, buf)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -61,14 +63,15 @@ func (c *Client) upload(
 		req.Header.Set("Upload-Length", strconv.FormatInt(length, 10))
 		req.Header.Set("Upload-Offset", strconv.FormatInt(written, 10))
 
-		client := newRetryableClient()
-		resp, err := client.Do(req.WithContext(ctx))
+		resp, err := c.do(ctx, req)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		if err := errorFromResponse(resp); err != nil {
+			resp.Body.Close()
 			return nil, err
 		}
+		resp.Body.Close()
 
 		if str := resp.Header.Get(api.HeaderDigest); str != "" {
 			parts := strings.SplitN(str, " ", 2)

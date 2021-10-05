@@ -96,15 +96,16 @@ func (b *UploadBatch) Upload(ctx context.Context) error {
 	}
 
 	url := path.Join("datasets", b.dataset.id, "batch/upload")
-	req, err := b.dataset.client.newRetryableRequest(http.MethodPost, url, nil, buffer)
+	req, err := b.dataset.client.newRequest(http.MethodPost, url, nil, buffer)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-	resp, err := newRetryableBatchClient().Do(req.WithContext(ctx))
+	resp, err := b.dataset.client.do(ctx, req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer resp.Body.Close()
 	return errorFromResponse(resp)
 }

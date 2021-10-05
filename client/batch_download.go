@@ -144,13 +144,13 @@ func (b *FileBatch) next() (*api.FileInfo, io.ReadCloser, error) {
 		}
 
 		url := path.Join("datasets", b.dataset.id, "batch/download")
-		req, err := b.dataset.client.newRetryableRequest(http.MethodPost, url, nil, buf)
+		req, err := b.dataset.client.newRequest(http.MethodPost, url, nil, buf)
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
 		}
 		req.Header.Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 
-		b.resp, err = newRetryableBatchClient().Do(req.WithContext(b.ctx))
+		b.resp, err = b.dataset.client.do(b.ctx, req)
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
 		}

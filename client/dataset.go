@@ -142,6 +142,7 @@ func (d *DatasetRef) FileInfo(ctx context.Context, filename string) (*api.FileIn
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrFileNotFound
 	}
@@ -173,6 +174,7 @@ func (d *DatasetRef) DeleteFile(ctx context.Context, filename string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		return ErrFileNotFound
 	}
@@ -248,7 +250,7 @@ func (d *DatasetRef) readFileRange(
 	}
 
 	path := path.Join("/datasets", d.id, "files", filename)
-	req, err := d.client.newRetryableRequest(http.MethodGet, path, nil, nil)
+	req, err := d.client.newRequest(http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -258,7 +260,7 @@ func (d *DatasetRef) readFileRange(
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
 	}
 
-	resp, err := newRetryableClient().Do(req.WithContext(ctx))
+	resp, err := d.client.do(ctx, req)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -312,7 +314,7 @@ func (d *DatasetRef) WriteFile(
 	}
 
 	path := path.Join("/datasets", d.id, "files", filename)
-	req, err := d.client.newRetryableRequest(http.MethodPut, path, nil, body)
+	req, err := d.client.newRequest(http.MethodPut, path, nil, body)
 	if err != nil {
 		return err
 	}
@@ -323,11 +325,11 @@ func (d *DatasetRef) WriteFile(
 		req.ContentLength = size
 	}
 
-	client := newRetryableClient()
-	resp, err := client.Do(req.WithContext(ctx))
+	resp, err := d.client.do(ctx, req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer resp.Body.Close()
 	return errorFromResponse(resp)
 }
 
@@ -338,16 +340,16 @@ func (d *DatasetRef) AddFile(
 	digest []byte,
 ) error {
 	path := path.Join("/datasets", d.id, "files", filename)
-	req, err := d.client.newRetryableRequest(http.MethodPut, path, nil, nil)
+	req, err := d.client.newRequest(http.MethodPut, path, nil, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set(api.HeaderDigest, api.EncodeDigest(digest))
 
-	client := newRetryableClient()
-	resp, err := client.Do(req.WithContext(ctx))
+	resp, err := d.client.do(ctx, req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer resp.Body.Close()
 	return errorFromResponse(resp)
 }

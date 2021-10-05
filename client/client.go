@@ -2,22 +2,20 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
-	"math"
-	"math/rand"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/goware/urlx"
-	retryable "github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
+	"github.com/allenai/bytefmt"
 	"github.com/beaker/fileheap/api"
 )
 
@@ -35,6 +33,7 @@ const (
 type Client struct {
 	baseURL *url.URL
 	token   string
+	client  *http.Client
 }
 
 // New creates a new client connected the given address.
@@ -52,7 +51,7 @@ func New(address string, options ...Option) (*Client, error) {
 		return nil, errors.New("address must be base server address in the form [scheme://]host[:port]")
 	}
 
-	c := &Client{baseURL: u}
+	c := &Client{baseURL: u, client: &http.Client{Timeout: 5 * time.Minute}}
 	for _, opt := range options {
 		opt.Apply(c)
 	}
@@ -68,22 +67,34 @@ func (c *Client) BaseURL() *url.URL {
 	}
 }
 
-func (c *Client) newRetryableRequest(
-	method string,
-	path string,
-	query url.Values,
-	body interface{},
-) (*retryable.Request, error) {
-	u := c.baseURL.ResolveReference(&url.URL{Path: path, RawQuery: query.Encode()})
-	req, err := retryable.NewRequest(method, u.String(), body)
+type tracedBody struct {
+	body   io.ReadCloser
+	result *TraceResult
+	req    *http.Request
+}
+
+func (b *tracedBody) Close() error {
+	logrus.
+		WithFields(b.result.Fields()).
+		WithField("ContentLength", bytefmt.New(b.req.ContentLength, bytefmt.Binary)).
+		WithField("Method", b.req.Method).
+		WithField("URL", b.req.URL.String()).
+		Tracef("Completed FileHeap request")
+	return b.body.Close()
+}
+
+func (b *tracedBody) Read(p []byte) (n int, err error) {
+	return b.body.Read(p)
+}
+
+func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	result := NewResult()
+	resp, err := c.client.Do(req.WithContext(withClientTrace(ctx, result)))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", userAgent)
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-	return req, nil
+	resp.Body = &tracedBody{body: resp.Body, result: result, req: req}
+	return resp, nil
 }
 
 func (c *Client) newRequest(
@@ -122,15 +133,12 @@ func (c *Client) sendRequest(
 		reader = buf
 	}
 
-	req, err := c.newRetryableRequest(method, path, query, reader)
+	req, err := c.newRequest(method, path, query, reader)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	client := newRetryableClient()
-	client.HTTPClient.Timeout = 30 * time.Second
-	return client.Do(req.WithContext(ctx))
+	return c.do(ctx, req)
 }
 
 // errorFromResponse creates an error from an HTTP response, or nil on success.
@@ -168,51 +176,60 @@ func parseResponse(resp *http.Response, value interface{}) error {
 	return json.Unmarshal(bytes, value)
 }
 
-func newRetryableClient() *retryable.Client {
-	return &retryable.Client{
-		HTTPClient:   &http.Client{Timeout: 5 * time.Minute},
-		Logger:       &errorLogger{Logger: log.New(os.Stderr, "", log.LstdFlags)},
-		RetryWaitMin: 100 * time.Millisecond,
-		RetryWaitMax: 30 * time.Second,
-		RetryMax:     9,
-		CheckRetry:   retryable.DefaultRetryPolicy,
-		Backoff:      exponentialJitterBackoff,
-		ErrorHandler: retryable.PassthroughErrorHandler,
+type TraceResult struct {
+	Start                time.Time
+	DNSStart             time.Time
+	DNSDone              time.Time
+	ConnectStart         time.Time
+	ConnectDone          time.Time
+	TLSHandshakeStart    time.Time
+	TLSHandshakeDone     time.Time
+	GotFirstResponseByte time.Time
+}
+
+func NewResult() *TraceResult {
+	return &TraceResult{Start: time.Now()}
+}
+
+func (r *TraceResult) Fields() logrus.Fields {
+	end := time.Now()
+	return logrus.Fields{
+		"DNS":       r.DNSDone.Sub(r.DNSStart).String(),
+		"Connect":   r.ConnectDone.Sub(r.ConnectStart).String(),
+		"TLS":       r.TLSHandshakeDone.Sub(r.TLSHandshakeStart).String(),
+		"FirstByte": r.GotFirstResponseByte.Sub(r.Start).String(),
+		"Total":     end.Sub(r.Start).String(),
 	}
 }
 
-// newRetryableBatchClient configures retryable batch client for use with batch APIs.
-// Changes:
-// 1. a much larger HTTPClient timeout.
-// TODO: this should probably be configurable.
-func newRetryableBatchClient() *retryable.Client {
-	retryableClient := newRetryableClient()
-	retryableClient.HTTPClient.Timeout = 30 * time.Minute
-	return retryableClient
-}
+func withClientTrace(ctx context.Context, r *TraceResult) context.Context {
+	return httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		DNSStart: func(i httptrace.DNSStartInfo) {
+			r.DNSStart = time.Now()
+		},
 
-var random = rand.New(rand.NewSource(time.Now().UnixNano()))
+		DNSDone: func(i httptrace.DNSDoneInfo) {
+			r.DNSDone = time.Now()
+		},
 
-// exponentialJitterBackoff implements exponential backoff with full jitter as described here:
-// https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-func exponentialJitterBackoff(
-	minDuration, maxDuration time.Duration,
-	attempt int,
-	resp *http.Response,
-) time.Duration {
-	min := float64(minDuration)
-	max := float64(maxDuration)
+		ConnectStart: func(_, _ string) {
+			r.ConnectStart = time.Now()
+		},
 
-	backoff := min + math.Min(max-min, min*math.Exp2(float64(attempt)))*random.Float64()
-	return time.Duration(backoff)
-}
+		ConnectDone: func(network, addr string, err error) {
+			r.ConnectDone = time.Now()
+		},
 
-type errorLogger struct {
-	Logger *log.Logger
-}
+		TLSHandshakeStart: func() {
+			r.TLSHandshakeStart = time.Now()
+		},
 
-func (l *errorLogger) Printf(template string, args ...interface{}) {
-	if strings.HasPrefix(template, "[ERR]") {
-		l.Logger.Printf(template, args...)
-	}
+		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
+			r.TLSHandshakeDone = time.Now()
+		},
+
+		GotFirstResponseByte: func() {
+			r.GotFirstResponseByte = time.Now()
+		},
+	})
 }
