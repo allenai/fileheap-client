@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/goware/urlx"
@@ -20,6 +22,7 @@ import (
 )
 
 const userAgent = "fileheap/0.1.0"
+const ClientHostnameHeader = "Client-Hostname"
 
 const (
 	// Maximum number of requests to send in a batch.
@@ -112,6 +115,11 @@ func (c *Client) newRequest(
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	clientHostname, err := os.Hostname()
+	if err != nil {
+		clientHostname = fmt.Sprintf("unknown because %s", err.Error())
+	}
+	req.Header.Set(ClientHostnameHeader, clientHostname)
 	return req, nil
 }
 
