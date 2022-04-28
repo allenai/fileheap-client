@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/beaker/fileheap/api"
+	"github.com/allenai/fileheap-client/api"
 )
 
 // DeleteBatch contains a list of files to delete from a dataset.

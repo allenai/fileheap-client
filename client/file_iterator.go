@@ -7,7 +7,7 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/beaker/fileheap/api"
+	"github.com/allenai/fileheap-client/api"
 )
 
 // Iterator is an iterator over file information.

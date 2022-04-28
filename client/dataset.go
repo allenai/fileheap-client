@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/beaker/fileheap/api"
+	"github.com/allenai/fileheap-client/api"
 )
 
 // DatasetOpts allows clients to set options during creation of a new dataset.
