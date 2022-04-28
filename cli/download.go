@@ -12,9 +12,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/beaker/fileheap/api"
-	"github.com/beaker/fileheap/async"
-	"github.com/beaker/fileheap/client"
+	"github.com/allenai/fileheap-client/api"
+	"github.com/allenai/fileheap-client/async"
+	"github.com/allenai/fileheap-client/client"
 )
 
 // Download all files under the sourcePath in the sourcePkg to the targetPath.

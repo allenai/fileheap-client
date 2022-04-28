@@ -7,7 +7,7 @@ _This repository is automatically generated._
 ## Download
 
 ```bash
-go get -u github.com/beaker/fileheap
+go get -u github.com/allenai/fileheap-client
 ```
 
 ## Build

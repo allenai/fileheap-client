@@ -1,4 +1,4 @@
-module github.com/beaker/fileheap
+module github.com/allenai/fileheap-client
 
 go 1.16
 

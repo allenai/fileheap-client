@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/beaker/fileheap/api"
+	"github.com/allenai/fileheap-client/api"
 )
 
 // upload writes the contents of a reader using the upload API.

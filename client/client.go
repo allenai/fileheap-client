@@ -18,7 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/allenai/bytefmt"
-	"github.com/beaker/fileheap/api"
+	"github.com/allenai/fileheap-client/api"
 )
 
 const userAgent = "fileheap/0.1.0"
